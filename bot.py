@@ -5,15 +5,18 @@ import configparser
 import discord
 import time
 import json
+import lavalink
+import urbandictionary as ud
+from discord import utils
 from PyDictionary import PyDictionary
 from pathlib import Path
+from discord.ext import commands
+from discord import Embed
 from discord.ext.commands import *
 
 dictionary = PyDictionary()
 
 client = discord.Client()
-
-prefix = '^'
 
 if os.path.isfile('register.json') :
     saves = open("register.json", "r")
@@ -25,6 +28,9 @@ else:
 
 config = configparser.ConfigParser()
 config.read('config.ini')
+
+prefix = config['DISCORD']['prefix']
+client = commands.Bot(command_prefix=config['DISCORD']['prefix'])
 
 def debit(message, amt):
     register[str(message.author)] -= amt
@@ -38,6 +44,16 @@ def saveup():
     save = json.dumps(register)
     saves.write(save)
 
+def lava():
+    global client
+    client.music = lavalink.Client(client.user.id)
+    client.music.add_node('localhost', 7000, 'testing', 'na', 'music-node')
+    client.add_listener(client.music.voice_update_handler, 'on_socket_response')
+    client.music.add_event_hook(track_hook)
+
+def mcheck(m):
+    return m.author.id == m.author.id
+
 def wordsearch(word):
     meaning = str(dictionary.meaning(word))
     if meaning != 'None':
@@ -45,18 +61,39 @@ def wordsearch(word):
     else:
         return "Could not find the meaning :cry:"
 
+async def track_hook(event):
+    if isinstance(event, lavalink.events.QueueEndEvent):
+      guild_id = int(event.player.guild_id)
+      await connect_to(guild_id, None)
+      
+async def connect_to(guild_id: int, channel_id: str):
+    ws = client._connection._get_websocket(guild_id)
+    await ws.voice_state(str(guild_id), channel_id)
+
+def stringformer(listlol):
+    string = ''
+    for element in listlol:
+        string = string + str(element) + ' '
+    return(string)
+
 @client.event
 async def on_ready():
+    lava()
     print('We have logged in as {0.user}'.format(client))
     await client.change_presence(activity=discord.Game(name="Fall Guys"))
 
 @client.event
 async def on_message(message):
 
-   if str(message.author) not in register.keys():
-    register[str(message.author)] = 1
-   else:
-    register[str(message.author)] += 1
+    def checker(message):
+        yield (message.author in message.mentions)
+
+
+
+    if str(message.author) not in register.keys():
+        register[str(message.author)] = 1
+    else:
+        register[str(message.author)] += 1
 
     if message.author == client.user:
         return
@@ -106,8 +143,56 @@ https://discord.com/api/oauth2/authorize?client_id=744774971380989993&permission
         elif command == 'points':
             await message.channel.send(message.author.mention + ' You have ' + str(register[str(message.author)])+ ' points!')
         
+        elif command == 'velle':
+            await message.channel.send("Tu vella bc :face_with_symbols_over_mouth:")
+
+        elif command == 'join':
+            member = utils.find(lambda m: m.id == message.author.id, message.guild.members)
+            if member is not None and member.voice is not None:
+                vc = member.voice.channel
+                player = client.music.player_manager.create(message.guild.id, endpoint=str(message.guild.region))
+                if not player.is_connected:
+                    player.store('channel', message.channel.id)
+                    await connect_to(message.guild.id, str(vc.id))
+
+        elif command == 'play':
+            try:
+                player = client.music.player_manager.get(message.guild.id)
+                query = stringformer(args[0::])
+                query = f'ytsearch:{query}'
+                results = await player.node.get_tracks(query)
+                tracks = results['tracks'][0:10]
+                i = 0
+                query_result = ''
+                for track in tracks:
+                    i = i + 1
+                    query_result = query_result + f'{i}) {track["info"]["title"]} - {track["info"]["uri"]}\n'
+                embed = Embed()
+                embed.description = query_result
+
+                await message.channel.send(embed=embed)
+            
+                response = await client.wait_for('message', check=mcheck)
+                track = tracks[int(response.content)-1]
+
+                player.add(requester=message.author.id, track=track)
+                if not player.is_playing:
+                    await player.play()
+
+            except Exception as e:
+                print(e)
+
         elif command == 'purge':
-            if args[0]:
+            if args[0] and len(message.mentions) > 0:
+                try:
+                    num = int(args[0])
+                    deleted = await message.channel.purge(limit = num, check=checker, bulk=False)
+                    await message.channel.send("Deleted {} message(s)".format(len(deleted))+f"from {str(message.mentions[0])}")
+                except ValueError:
+                    await message.channel.send("Please enter the number of messages to delete")
+        
+
+            elif args[0]:
                 try:
                     num = int(args[0])
                     deleted = await message.channel.purge(limit = num)
@@ -214,10 +299,18 @@ clear
 
         elif command == 'def':
             if args[0]:
-                await message.channel.send(message.author.mention + ' meaning of requested word is:- ' + str(wordsearch(args[0])))
-
+                try:
+                    await message.channel.send(message.author.mention + ' meaning of requested word is:- ' + str(ud.define(str(stringformer(args[0::])))[0].definition))
+                except IndexError:
+                    await message.channel.send("Could not find the meaning :worried:")
             else:
                 await message.channel.send(message.author.mention + ' meaning of what?')
+
+        elif command == 'choose':
+            if len(args) > 2:
+                await message.channel.send(random.choice(args))
+            else:
+                await message.channel.send("Choose b/w what?? Command usage: <command> <choice 1> <choice 2> <choice 3> ... (Choices should not have space)")
 
         elif command == 'transfer':
             print(args)
@@ -237,25 +330,70 @@ clear
 
         elif command == 'redeem':
             if args[0] == 'template':
-                amt = 5
+                amt = 50
                 if amt <= register.get(str(message.author)):
-                    await message.channel.send("Here's your template "+message.author.mention+"!", file = discord.File(os.path.join(os.getcwd()+"\\assets\\templates",random.choice(os.listdir("assets\\templates")))))
+                    await message.channel.send("Here's your template "+message.author.mention+"!", file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\templates",random.choice(os.listdir("assets\\images\\templates")))))
                     debit(message, amt)
                 else:
                     await message.channel.send(message.author.mention + f'You require {amt} points fot this redeem')
+            
 
             elif args[0] == 'waifu':
-                amt = 10
+                try: 
+                    if args[0] == 'waifu' and args[1]:
+                        amt = 50
+                        if amt <= register.get(str(message.author)):
+                            if args[1]+'.png' in os.listdir("assets\\images\\waifus\\images") or args[1]+'.jpeg' in os.listdir("assets\\images\\waifus\\images"):
+                                amt = 100
+                                if amt <= register.get(str(message.author)):
+                                    if args[1]+'.png' in os.listdir("assets\\images\\waifus\\images"):
+                                        waifu = args[1]+'.png'
+                                        await message.channel.send("Requested waifu is: {}".format(waifu), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
+                                        debit(message, amt)
+                                    elif args[1]+'.jpeg' in os.listdir("assets\\images\\waifus\\images"):
+                                        waifu = args[1]+'.jpeg'
+                                        await message.channel.send("Requested waifu is: {}".format(waifu), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
+                                        debit(message, amt)
+                                    else:
+                                        await message.channel.send("An error occured, no points have been debited")
+                                else:
+                                    message.channel.send(message.author.mention + f' No Points No Waifu :joy: You require {amt} points fot this redeem')
+                            else:
+                                await message.channel.send("A waifu with that id does not exist. Stay 4ever Alone ☮️, however I need 50 points for my date so m gonna take em from u!")
+                                debit(message, 50)
+                except IndexError:
+                    amt = 200
+                    if amt <= register.get(str(message.author)):
+                        waifu = random.choice(os.listdir("assets\\waifus\\images"))
+                        await message.channel.send("And u r gonna be shipped with ... waifu: {}".format(waifu), file = discord.File(os.path.join(os.getcwd()+"\\assets\\waifus\\images",waifu)))
+                        debit(message, amt)
+                    else:
+                        await message.channel.send(message.author.mention + f' No Points No Waifu :joy: You require {amt} points fot this redeem')
+
+            elif args[0] == 'poll':
+                amt = 20
                 if amt <= register.get(str(message.author)):
-                    await message.channel.send("And u r gonna be shipped with ...", file = discord.File(os.path.join(os.getcwd()+"\\assets\\waifus\\images",random.choice(os.listdir("assets\\waifus\\images")))))
+                    poll = await message.channel.send(stringformer(args[1::]))
+                    await poll.add_reaction("👍")
+                    await poll.add_reaction("👎")
                     debit(message, amt)
                 else:
-                    await message.channel.send(message.author.mention + f' No Points No Waifu :joy: You require {amt} points fot this redeem')
-            
+                    message.channel.send("Insufficient points for initiating poll! It requires 20! :cry:")
+
+            elif args[0] == 'stranger':
+                amt = 100
+                if amt <= register.get(str(message.author)):
+                    person = random.choice(list(register.keys()))
+                    peopleknown = len(register.keys())
+                    await message.channel.send(f"And u get... {person} out of the {peopleknown} people I know!")
+                    debit(message, amt)
+                else:
+                    await message.channel.send(random.choice(["Information is a commdity my friend and it costs 100 points for this one", "Introductions are expensive 100 points for this one"]))
+
             elif args[0] == 'roll':
                 amt = 6
                 if amt <= register.get(str(message.author)):
-                    await message.channel.send(message.author.mention+" rolled the die & its a "+random.choice("1","2","3","4","5","6")+"!")
+                    await message.channel.send(message.author.mention+" rolled the die & its a "+random.choice(["1","2","3","4","5","6"])+"!")
 
             elif args[0] == '8ball':
                 amt = 8
@@ -280,6 +418,7 @@ clear
                 if amt <= register.get(str(message.author)):
                     await message.channel.send("Fuck You Too! :smile: I have debited 100 points from your account!")
                     debit(message, amt)
+
                 else:
                     await message.channel.send("If u have less than 100 points, u cant fuck me sry, fucks cost points! :smile:")
             else:
@@ -297,7 +436,7 @@ clear
             else:
                 await message.channel.send("Invalid cheat :joy:")
         else:
-            await message.channel.send('I know of no such command :worried:')
+            await message.channel.send('I know of no such command :thinking:')
 
     saveup()
 

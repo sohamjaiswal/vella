@@ -11,6 +11,7 @@ from discord import utils
 from PyDictionary import PyDictionary
 from pathlib import Path
 from discord.ext import commands
+from discord.errors import *
 from discord import Embed
 from discord.ext.commands import *
 

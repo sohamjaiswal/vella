@@ -29,6 +29,8 @@ else:
 config = configparser.ConfigParser()
 config.read('config.ini')
 
+owmAPI = config['OWM']['api_key']
+
 prefix = config['DISCORD']['prefix']
 client = commands.Bot(command_prefix=config['DISCORD']['prefix'])
 
@@ -47,7 +49,7 @@ def saveup():
 def lava():
     global client
     client.music = lavalink.Client(client.user.id)
-    client.music.add_node('localhost', 7000, 'testing', 'na', 'music-node')
+    client.music.add_node('localhost', 6942, 'testing', 'na', 'music-node')
     client.add_listener(client.music.voice_update_handler, 'on_socket_response')
     client.music.add_event_hook(track_hook)
 
@@ -144,7 +146,11 @@ https://discord.com/api/oauth2/authorize?client_id=744774971380989993&permission
             await message.channel.send(message.author.mention + ' You have ' + str(register[str(message.author)])+ ' points!')
         
         elif command == 'velle':
-            await message.channel.send("Tu vella bc :face_with_symbols_over_mouth:")
+            vella = ("Tu vella bc :face_with_symbols_over_mouth:")
+            embed = Embed()
+            embed.description = vella
+            await message.channel.send(embed=embed)
+
 
         elif command == 'join':
             member = utils.find(lambda m: m.id == message.author.id, message.guild.members)
@@ -207,6 +213,30 @@ https://discord.com/api/oauth2/authorize?client_id=744774971380989993&permission
                     await message.channel.send("Successfully deleted the messages, no hiccups")
             else:
                 await message.channel.send("How many to delete again???")
+
+        elif command == 'weather':
+            if len(args)>=1:
+                city = stringformer(args)
+                base_url = "http://api.openweathermap.org/data/2.5/weather?"
+                complete_url = base_url + "appid=" + owmAPI + "&q=" + city
+                response = requests.get(complete_url) 
+                x = response.json() 
+                if x["cod"] != "404": 
+                    y = x["main"] 
+                    current_temperature = y["temp"] 
+                    current_pressure = y["pressure"]
+                    current_humidiy = y["humidity"] 
+                    z = x["weather"]
+                    weather_description = z[0]["description"] 
+                    info = (" Temperature (in kelvin unit) = " +str(current_temperature) + "\n atmospheric pressure (in hPa unit) = " +str(current_pressure) + "\n humidity (in percentage) = " +str(current_humidiy) +"\n description = " +str(weather_description)) 
+                    embed = Embed()
+                    embed.description = info
+
+                    await message.channel.send(embed=embed)
+                else:
+                    await message.channel.send("City not found :cry:")
+            else:
+                await message.channel.send("Which place's weather? Command usage: <command> <city>")
 
         elif command == 'clear':
             await message.channel.send('''
@@ -300,7 +330,10 @@ clear
         elif command == 'def':
             if args[0]:
                 try:
-                    await message.channel.send(message.author.mention + ' meaning of requested word is:- ' + str(ud.define(str(stringformer(args[0::])))[0].definition))
+                    definition = (message.author.mention + ' meaning of requested word is:- ' + str(ud.define(str(stringformer(args[0::])))[0].definition))
+                    embed = Embed()
+                    embed.description = definition
+                    await message.channel.send(embed=embed)
                 except IndexError:
                     await message.channel.send("Could not find the meaning :worried:")
             else:
@@ -348,25 +381,29 @@ clear
                                 if amt <= register.get(str(message.author)):
                                     if args[1]+'.png' in os.listdir("assets\\images\\waifus\\images"):
                                         waifu = args[1]+'.png'
-                                        await message.channel.send("Requested waifu is: {}".format(waifu), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
+                                        await message.channel.send("Requested waifu is: {}".format(waifu[:-4:]), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
                                         debit(message, amt)
                                     elif args[1]+'.jpeg' in os.listdir("assets\\images\\waifus\\images"):
                                         waifu = args[1]+'.jpeg'
-                                        await message.channel.send("Requested waifu is: {}".format(waifu), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
+                                        await message.channel.send("Requested waifu is: {}".format(waifu[:-5:]), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
                                         debit(message, amt)
                                     else:
                                         await message.channel.send("An error occured, no points have been debited")
                                 else:
-                                    message.channel.send(message.author.mention + f' No Points No Waifu :joy: You require {amt} points fot this redeem')
+                                    message.channel.send(message.author.mention + f' No Points No Waifu :joy: You require {amt} points for this redeem')
                             else:
                                 await message.channel.send("A waifu with that id does not exist. Stay 4ever Alone ☮️, however I need 50 points for my date so m gonna take em from u!")
                                 debit(message, 50)
                 except IndexError:
                     amt = 200
                     if amt <= register.get(str(message.author)):
-                        waifu = random.choice(os.listdir("assets\\waifus\\images"))
-                        await message.channel.send("And u r gonna be shipped with ... waifu: {}".format(waifu), file = discord.File(os.path.join(os.getcwd()+"\\assets\\waifus\\images",waifu)))
-                        debit(message, amt)
+                        waifu = random.choice(os.listdir("assets\\images\\waifus\\images"))
+                        if '.png' in waifu:
+                            await message.channel.send("And u r gonna be shipped with ... waifu: {}".format(waifu[:-4:]), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
+                            debit(message, amt)
+                        if '.jpeg' in waifu:
+                            await message.channel.send("And u r gonna be shipped with ... waifu: {}".format(waifu[:-5:]), file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",waifu)))
+                            debit(message, amt)
                     else:
                         await message.channel.send(message.author.mention + f' No Points No Waifu :joy: You require {amt} points fot this redeem')
 
@@ -430,9 +467,11 @@ clear
                 await message.channel.send(f"Credited {args[1]} to {message.author}'s account")
 
             elif args[0] == 'helloladies' and int(args[1]):
-                for i in range(0,int(args[1])):
-                    await message.channel.send("And u r gonna be shipped with ...", file = discord.File(os.path.join(os.getcwd()+"\\assets\\waifus\\images",random.choice(os.listdir("assets\\waifus\\images")))))
-            
+                if int(args[1]) <= 10:
+                    for i in range(0,int(args[1])):
+                        await message.channel.send("And u r gonna be shipped with ...", file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",random.choice(os.listdir("assets\\images\\waifus\\images")))))
+                else:
+                    message.channel.send("Merul or Tejas, whoever u are... u r bargaining for way too much booty")
             else:
                 await message.channel.send("Invalid cheat :joy:")
         else:

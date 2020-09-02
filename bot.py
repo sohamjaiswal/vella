@@ -1,19 +1,37 @@
-import requests
-import random
-import os
 import configparser
-import discord
-import time
 import json
-import lavalink
-import urbandictionary as ud
-from discord import utils
-from PyDictionary import PyDictionary
+import os
+import sys
+import contextlib 
+import random
+import time
 from pathlib import Path
-from discord.ext import commands
+
+import discord
+import lavalink
+import requests
+import wikipedia as wiki
+from discord import Embed, utils
+from wikipedia.exceptions import *
 from discord.errors import *
-from discord import Embed
+from discord.ext import commands
 from discord.ext.commands import *
+from PyDictionary import PyDictionary
+
+import urbandictionary as ud
+
+import contextlib 
+  
+try: 
+    from urllib.parse import urlencode           
+  
+except ImportError: 
+    from urllib import urlencode 
+try: 
+    from urllib.request import urlopen 
+  
+except ImportError: 
+    from urllib2 import urlopen 
 
 dictionary = PyDictionary()
 
@@ -32,6 +50,8 @@ config.read('config.ini')
 
 owmAPI = config['OWM']['api_key']
 
+servers = {}
+
 prefix = config['DISCORD']['prefix']
 client = commands.Bot(command_prefix=config['DISCORD']['prefix'])
 
@@ -41,21 +61,27 @@ def debit(message, amt):
 def credit(message, amt):
     register[str(message.author)] += amt
 
+def mathmaker(string):
+    alpha = string.replace("x", "*")
+    beta = alpha.replace("X", '*')
+    return beta
+
 def saveup():
     saves = open("register.json", "a+")
     saves.write('\n')
     save = json.dumps(register)
     saves.write(save)
 
-def lava():
-    global client
-    client.music = lavalink.Client(client.user.id)
-    client.music.add_node('localhost', 6942, 'testing', 'na', 'music-node')
-    client.add_listener(client.music.voice_update_handler, 'on_socket_response')
-    client.music.add_event_hook(track_hook)
+def strformerulu(lolu):
+    stru = ''
+    for elementu in lolu:
+        stru += elementu + ' '
+    return stru
 
-def mcheck(m):
-    return m.author.id == m.author.id
+def make_tiny(url): 
+    request_url = ('http://tinyurl.com/api-create.php?' + urlencode({'url':url}))     
+    with contextlib.closing(urlopen(request_url)) as response:                       
+        return response.read().decode('utf-8 ')
 
 def wordsearch(word):
     meaning = str(dictionary.meaning(word))
@@ -63,15 +89,6 @@ def wordsearch(word):
         return meaning
     else:
         return "Could not find the meaning :cry:"
-
-async def track_hook(event):
-    if isinstance(event, lavalink.events.QueueEndEvent):
-      guild_id = int(event.player.guild_id)
-      await connect_to(guild_id, None)
-      
-async def connect_to(guild_id: int, channel_id: str):
-    ws = client._connection._get_websocket(guild_id)
-    await ws.voice_state(str(guild_id), channel_id)
 
 def stringformer(listlol):
     string = ''
@@ -81,7 +98,6 @@ def stringformer(listlol):
 
 @client.event
 async def on_ready():
-    lava()
     print('We have logged in as {0.user}'.format(client))
     await client.change_presence(activity=discord.Game(name="Fall Guys"))
 
@@ -90,8 +106,6 @@ async def on_message(message):
 
     def checker(message):
         yield (message.author in message.mentions)
-
-
 
     if str(message.author) not in register.keys():
         register[str(message.author)] = 1
@@ -145,49 +159,32 @@ https://discord.com/api/oauth2/authorize?client_id=744774971380989993&permission
 
         elif command == 'points':
             await message.channel.send(message.author.mention + ' You have ' + str(register[str(message.author)])+ ' points!')
-        
+
+
         elif command == 'velle':
             vella = ("Tu vella bc :face_with_symbols_over_mouth:")
-            embed = Embed()
-            embed.description = vella
+            embed = Embed(title = 'U r tryin to fight me?', description = vella)
             await message.channel.send(embed=embed)
 
+        elif command == 'merulu':
+                messageu = args[0::]
+                bananasplitu = []
+                for wordu in messageu:
+                    bananasplitu.append(str(wordu)+'u')
+                destroyumerulu = strformerulu(bananasplitu)
+                await message.channel.send(destroyumerulu)
 
-        elif command == 'join':
-            member = utils.find(lambda m: m.id == message.author.id, message.guild.members)
-            if member is not None and member.voice is not None:
-                vc = member.voice.channel
-                player = client.music.player_manager.create(message.guild.id, endpoint=str(message.guild.region))
-                if not player.is_connected:
-                    player.store('channel', message.channel.id)
-                    await connect_to(message.guild.id, str(vc.id))
-
-        elif command == 'play':
-            try:
-                player = client.music.player_manager.get(message.guild.id)
-                query = stringformer(args[0::])
-                query = f'ytsearch:{query}'
-                results = await player.node.get_tracks(query)
-                tracks = results['tracks'][0:10]
+        elif command == 'url':
+            if args[0]:
+                embed = Embed(title = 'URL', description = 'Your links... Made tiny!')
+                embed.set_thumbnail(url = 'https://upload.wikimedia.org/wikipedia/commons/d/d9/Tinyurl_logo.png')
                 i = 0
-                query_result = ''
-                for track in tracks:
-                    i = i + 1
-                    query_result = query_result + f'{i}) {track["info"]["title"]} - {track["info"]["uri"]}\n'
-                embed = Embed()
-                embed.description = query_result
-
-                await message.channel.send(embed=embed)
-            
-                response = await client.wait_for('message', check=mcheck)
-                track = tracks[int(response.content)-1]
-
-                player.add(requester=message.author.id, track=track)
-                if not player.is_playing:
-                    await player.play()
-
-            except Exception as e:
-                print(e)
+                async with message.channel.typing():
+                    for arg in args:
+                        i+=1
+                        uri = make_tiny(arg)
+                        embed.add_field(name = f'{i})', value = uri)
+                    await message.channel.send(embed=embed)
 
         elif command == 'purge':
             if args[0] and len(message.mentions) > 0:
@@ -198,7 +195,6 @@ https://discord.com/api/oauth2/authorize?client_id=744774971380989993&permission
                 except ValueError:
                     await message.channel.send("Please enter the number of messages to delete")
         
-
             elif args[0]:
                 try:
                     num = int(args[0])
@@ -315,30 +311,68 @@ clear
 clear            
             ''')
 
-            if command == 'start':
-                if str(message.author) not in register.keys():
-                    register[str(message.author)] = 1
-                else:
-                    register[str(message.author)] += 1
-
         elif command == 'avatar':
-            if message.mentions:
+            if len(message.mentions):
                 for lol in message.mentions:
-                    await message.channel.send("Here you go! "+ str(lol.avatar_url))
+                    embed = Embed(title = 'Avatar', description = str(lol))
+                    embed.add_field(name = 'link: ', value = lol.avatar_url)
+                    embed.set_image(url = lol.avatar_url)
+                    await message.channel.send(embed = embed)
             else:
                 await message.channel.send("Mention the user of whose avatar you want!")
+
+        elif command == 'math':
+            if args[0]:
+                try:
+                    prob = stringformer(args)
+                    sol = eval(mathmaker(prob))
+                    embed = Embed(title = 'Math', description = 'Making lives complexer since the beggining of time')
+                    embed.add_field(name = 'Problem:', value = prob)
+                    embed.add_field(name = 'Solution:', value = str(sol))
+                    await message.channel.send(embed=embed)
+                except Exception as e:
+                    print(e)
+                    await message.channel.send('Me not smart enough to solve that')
 
         elif command == 'def':
             if args[0]:
                 try:
-                    definition = (message.author.mention + ' meaning of requested word is:- ' + str(ud.define(str(stringformer(args[0::])))[0].definition))
-                    embed = Embed()
-                    embed.description = definition
-                    await message.channel.send(embed=embed)
+                    async with message.channel.typing():
+                        word = args[0::]
+                        urband = ud.define(stringformer(word))[0]
+                        embed = Embed(title = urband.word, description = urband.definition[0:2045]+'...')
+                        embed.set_thumbnail(url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/UD_logo-01.svg/1200px-UD_logo-01.svg.png')
+                        embed.add_field(name = 'Usage', value= str(urband.example))
+                        embed.add_field(name = 'Upvotes 👍', value = str(urband.upvotes))
+                        embed.add_field(name = 'Downvotes 👎', value = str(urband.downvotes))
+                        answer = await message.channel.send(embed=embed)
+                        await answer.add_reaction("👍")
+                        await answer.add_reaction("👎")
+
                 except IndexError:
                     await message.channel.send("Could not find the meaning :worried:")
             else:
                 await message.channel.send(message.author.mention + ' meaning of what?')
+
+        elif command == 'wiki':
+            if args[0]:
+                try:
+                    async with message.channel.typing():
+                        search = str(wiki.search(str(stringformer(args[0::])))[0])
+                        summary = wiki.summary(search)
+                        page = wiki.page(search).url
+                        embed = Embed(title = search, description = summary[0:2045]+'...')
+                        embed.set_thumbnail(url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Wikipedia-logo-en-big.png/490px-Wikipedia-logo-en-big.png')
+                        embed.add_field(name = 'Click this link for more:', value = page)
+                        await message.channel.send(embed = embed)
+
+                except wiki.exceptions.PageError:
+                    embed = Embed(title = 'Error', description = 'Oof there exists no wiki page for that :cry:')
+                    await message.channel.send(embed=embed)
+        
+            else:
+                embed = Embed(title = 'Error', description = f"{message.author.mention} wiki of what?")
+                await message.channel.send(embed=embed)
 
         elif command == 'choose':
             if len(args) > 2:
@@ -451,7 +485,7 @@ clear
                 else:
                     await message.channel.send("You require 2 points to flip the coin!")
 
-            elif args[0] == 'ducku' or 'duck u' or 'fuck u' or 'fucku' :
+            elif 'fuck' in stringformer(args[0::]):
                 amt = 100
                 if amt <= register.get(str(message.author)):
                     await message.channel.send("Fuck You Too! :smile: I have debited 100 points from your account!")
@@ -472,7 +506,7 @@ clear
                     for i in range(0,int(args[1])):
                         await message.channel.send("And u r gonna be shipped with ...", file = discord.File(os.path.join(os.getcwd()+"\\assets\\images\\waifus\\images",random.choice(os.listdir("assets\\images\\waifus\\images")))))
                 else:
-                    message.channel.send("Merul or Tejas, whoever u are... u r bargaining for way too much booty")
+                    await message.channel.send("Merul or Tejas, whoever u are... u r bargaining for way too much booty")
             else:
                 await message.channel.send("Invalid cheat :joy:")
         else:
